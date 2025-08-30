@@ -1,0 +1,11 @@
+@font-face {
+    font-family: 'Torus Pro';
+    src: url('../assets/fonts/TorusPro-Regular.ttf');
+    font-weight: 400;
+}
+
+@font-face {
+    font-family: 'Torus Pro';
+    src: url('../assets/fonts/TorusPro-Bold.ttf');
+    font-weight: 700;
+}

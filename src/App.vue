@@ -39,7 +39,7 @@
                         <n-tab-pane name="token" tab="osu!lazer token">
                           <n-form ref="tokenFormRef" :model="tokenFormValue" :rules="tokenFormRules"
                             @submit="tokenFormGo">
-                            <n-space justify="space-between">
+                            <n-flex justify="center" align="center">
                               <n-form-item path="token" label="your osu!lazer token">
                                 <n-input autofocus clearable v-model:value="tokenFormValue.token"
                                   :disabled="tokenFormGoPressed" style="width: 350px;" />
@@ -48,7 +48,18 @@
                                 <n-button @click="tokenFormGo" :disabled="tokenFormGoDisabled && !tokenFormGoPressed">Go
                                   ⇒</n-button>
                               </n-form-item>
-                            </n-space>
+                              <n-alert type="warning">
+                                Your current lazer login will be <b>LOGGED OUT</b> and that is expected, that doesn't
+                                mean you get
+                                hacked.<br />
+                                This is because the token got in this way might already be expired so we send it to
+                                osu.ppy.sh and refresh it,
+                                which invalidates your curent token in lazer. Simply login your lazer again if you get
+                                logged out and
+                                everything will be fine.<br />
+                                Read the "Why is your token needed?" below for more information.
+                              </n-alert>
+                            </n-flex>
                           </n-form>
                         </n-tab-pane>
 

@@ -2,7 +2,7 @@ import { useCookies } from 'vue3-cookies';
 import { globalCookiesConfig } from 'vue3-cookies';
 
 globalCookiesConfig({
-    expireTimes: '7d',
+    expireTimes: '30d',
     secure: true,
     sameSite: 'strict',
 });

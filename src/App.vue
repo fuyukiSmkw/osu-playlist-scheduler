@@ -97,7 +97,7 @@
                       <a>Is this you?</a>
                       <UserConfirm :user="me" />
                       <n-space justify="space-between">
-                        <n-button @click="currentStep++">Yes, let's go</n-button>
+                        <n-button @click="userConfirmed">Yes, let's go</n-button>
                         <n-button
                           @click="userConfirmReady = false; tokenFormGoPressed = false; passwordFormGoPressed = false;">
                           No, edit token</n-button>
@@ -111,7 +111,10 @@
 
               <!-- 2. setup your playlist -->
               <div v-else-if="currentStep === 2">
-                <PlaylistEdit :api="api" :user="me" :playlist="playlist" :message="message" @ready="playlistReady" />
+                <n-spin :show="lastPlaylistExist">
+                  <template #description>You seem to have an unsaved playlist last time...</template>
+                  <PlaylistEdit :api="api" :user="me" :playlist="playlist" :message="message" @ready="playlistReady" />
+                </n-spin>
               </div>
 
               <!-- 3. fill room info -->
@@ -297,6 +300,7 @@ import UserConfirm from './components/UserConfirm.vue';
 import { MyApi } from './utils/MyApi.js';
 import { message } from './utils/message.js';
 import PlaylistEdit from './views/PlaylistEdit.vue';
+import { cookies } from './utils/cookies';
 
 const api = new MyApi();
 
@@ -421,7 +425,6 @@ function passwordFormGo(e) {
   e.preventDefault();
   passwordFormRef.value?.validate(async (errors, { warnings }) => {
     if (!errors) {
-      console.log('password form Go!');
       passwordFormGoPressed.value = true;
       userConfirmReady.value = false;
 
@@ -456,6 +459,11 @@ const showSpin = ref(false);
   }
 })();
 
+function userConfirmed() {
+  currentStep.value++;
+  loadFromCookies();
+}
+
 // #endregion <!-- 1. fill token --> END
 
 // #region <!-- 2. setup playlist --> BEGIN
@@ -463,6 +471,7 @@ const showSpin = ref(false);
 let playlist = ref([]);
 function playlistReady(p) {
   playlist.value = p;
+  writePlaylistToCookies();
   currentStep.value++;
 }
 
@@ -512,6 +521,14 @@ const roomFormValue = ref({
   endTimestamp: null,
   maxAttempts: null
 });
+const cookieWriter1 = {
+  trigger: ['blur'],
+  level: 'warning',
+  validator() {
+    writeRoom1ToCookies();
+    return true;
+  },
+};
 const roomFormRules = {
   name: [{
     required: true,
@@ -525,7 +542,7 @@ const roomFormRules = {
       return true;
     },
     trigger: ['input', 'blur'],
-  }],
+  }, cookieWriter1],
   duration: [{
     required: false,
     validator(rule, value) {
@@ -541,7 +558,7 @@ const roomFormRules = {
       return true;
     },
     trigger: ['input', 'blur'],
-  }],
+  }, cookieWriter1],
   endTimestamp: [{
     required: false,
     validator(rule, value) {
@@ -559,12 +576,12 @@ const roomFormRules = {
       return true;
     },
     trigger: ['input', 'blur'],
-  }],
+  }, cookieWriter1],
   maxAttempts: [{
     required: false,
     validator: (_, v) => v ? v >= 1 : true,
     trigger: ['input'],
-  }],
+  }, cookieWriter1],
 };
 
 const roomCreationFormRef = ref();
@@ -572,6 +589,14 @@ const roomCreationFormValue = ref({
   publishTimestamp: null,
   messages: '',
 });
+const cookieWriter2 = {
+  trigger: ['blur'],
+  level: 'warning',
+  validator() {
+    writeRoom2ToCookies();
+    return true;
+  },
+};
 const roomCreationFormRules = {
   publishTimestamp: [
     {
@@ -597,7 +622,9 @@ const roomCreationFormRules = {
         return true;
       },
     },
+    cookieWriter2,
   ],
+  messages: [cookieWriter2],
 };
 
 function handleSchedule(e) {
@@ -616,7 +643,7 @@ async function scheduleGo() {
   }
 
   scheduledTime = new Date(roomCreationFormValue.value.publishTimestamp);
-  room.value = Object.assign(room.value, {
+  Object.assign(room.value, {
     host: me,
     playlist: playlist.value,
     name: roomFormValue.value.name,
@@ -747,8 +774,83 @@ async function createPlaylist() {
 function done() {
   currentStep.value = 5;
   removeLeaveDialog();
+  removeCookies();
 }
 
 // #endregion <!-- 5. done --> END
+
+// #region Read cookies first BEGIN
+
+// read playlist from cookie
+const lastPlaylistExist = ref(false);
+let cookie_playlist = JSON.parse(decodeURIComponent(cookies.get('playlist')));
+if (cookie_playlist && typeof cookie_playlist === 'object') {
+  lastPlaylistExist.value = true;
+} else {
+  cookies.remove('playlist');
+}
+
+// read room from cookie
+const lastRoom1Exist = ref(false);
+let cookie_room1 = JSON.parse(decodeURIComponent(cookies.get('room1')));
+if (cookie_room1 && typeof cookie_room1 === 'object') {
+  lastRoom1Exist.value = true;
+} else {
+  cookies.remove('room1');
+}
+
+const lastRoom2Exist = ref(false);
+let cookie_room2 = JSON.parse(decodeURIComponent(cookies.get('room2')));
+if (cookie_room2 && typeof cookie_room2 === 'object') {
+  lastRoom2Exist.value = true;
+} else {
+  cookies.remove('room2');
+}
+
+async function loadFromCookies() {
+  if (lastPlaylistExist.value) {
+    for (const i of cookie_playlist) {
+      i.owner_id = me.value.id;
+      i.beatmap = api.getBeatmap(i.beatmap_id);
+    }
+    for (const i of cookie_playlist) {
+      i.beatmap = await i.beatmap;
+    }
+    Object.assign(playlist.value, cookie_playlist);
+    lastPlaylistExist.value = false;
+  }
+  if (lastRoom1Exist.value) {
+    Object.assign(roomFormValue.value, cookie_room1);
+    lastRoom1Exist.value = false;
+  }
+  if (lastRoom2Exist.value) {
+    Object.assign(roomCreationFormValue.value, cookie_room2);
+    lastRoom2Exist.value = false;
+  }
+}
+
+function writePlaylistToCookies() {
+  const p = JSON.parse(JSON.stringify(playlist.value));
+  for (const i of p) {
+    delete i.beatmap; // too big!
+  }
+  cookies.set('playlist', encodeURIComponent(JSON.stringify(p)));
+}
+
+function writeRoom1ToCookies() {
+  cookies.set('room1', encodeURIComponent(JSON.stringify(roomFormValue.value)));
+}
+
+function writeRoom2ToCookies() {
+  cookies.set('room2', encodeURIComponent(JSON.stringify(roomCreationFormValue.value)));
+}
+
+function removeCookies() {
+  cookies.remove('playlist');
+  cookies.remove('room1');
+  cookies.remove('room2');
+}
+
+// #endregion Read cookies first END
 
 </script>

@@ -49,8 +49,9 @@
                                   ⇒</n-button>
                               </n-form-item>
                               <n-alert type="warning">
-                                Your current lazer login will be <b>LOGGED OUT</b> and that is expected, that doesn't
-                                mean you get
+                                Your current lazer login will be <b>LOGGED OUT IMMEDIATELY</b> (so all the online
+                                functions of your lazer will
+                                be unavailable until you log in again) and that is expected, that doesn't mean you get
                                 hacked.<br />
                                 This is because the token got in this way might already be expired so we send it to
                                 osu.ppy.sh and refresh it,
@@ -364,6 +365,7 @@ function tokenFormGo(e) {
       api.updateApiFromString(tokenFormValue.value.token.trim());
 
       try {
+        await api.refreshToken();
         me.value = await api.getResourceOwner();
       } catch (exc) {
         message.error('Get user failed! Fix your token and try again :(')

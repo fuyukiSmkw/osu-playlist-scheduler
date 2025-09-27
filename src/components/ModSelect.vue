@@ -119,7 +119,7 @@ const allowInputFunctions = {
 const modeMap = {
   required_mods: allModList,
   required_mods_freestyle: allFreestyleRequiredModList,
-  freemods: allFreemodList,
+  freemods: allModList, // this is playlist instead of multiplayer room, so this should be all mods
 };
 
 const getModIconUrl = (acronym, disabled = false) => getAssetUrl(`/assets/images/mod${disabled ? '-disabled' : ''}/${acronym}.png`);
@@ -140,7 +140,8 @@ function handleUpdateSelection() {
 
 function selectAllFreemods() {
   removeAll();
-  allFreemodList[rulesetId].forEach((mod) => {
+  // this is playlist instead of multiplayer room, so this should be all mods
+  allModList[rulesetId].forEach((mod) => {
     if (!incompatibleMods.value.has(mod.Acronym)) {
       selectedAcronyms.value.push(mod.Acronym);
     }

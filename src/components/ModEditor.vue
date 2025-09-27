@@ -59,7 +59,7 @@ import {
   NDrawer, NDrawerContent,
   NDivider,
 } from 'naive-ui';
-import { acronymToMod, allFreemodList } from '@/utils/ModData.js';
+import { acronymToMod, allFreemodList, allModList } from '@/utils/ModData.js';
 import { getAssetUrl } from '@/utils/getAssetUrl';
 import ModSelect from './ModSelect.vue';
 import { ref, watch } from 'vue';
@@ -91,7 +91,8 @@ function freestyleUpdate(freestyle) {
     item.value.required_mods = item.value.required_mods.filter((mod) => acronymToMod[item.value.ruleset_id][mod.acronym].ValidForFreestyleAsRequiredMod);
   } else {
     // freestyle ON -> OFF
-    item.value.allowed_mods = allFreemodList[item.value.ruleset_id].map(mod => ({
+    // this is playlist instead of multiplayer room, so this should be all mods
+    item.value.allowed_mods = allModList[item.value.ruleset_id].map(mod => ({
       acronym: mod.Acronym,
       settings: {}
     })); // copy

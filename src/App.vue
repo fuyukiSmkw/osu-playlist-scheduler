@@ -644,10 +644,22 @@ async function scheduleGo() {
     return;
   }
 
+  // make copy of playlist: only keep required values
+  var minPlaylist = playlist.value.map(i => ({
+    id: i.id,
+    owner_id: i.owner_id,
+    ruleset_id: i.ruleset_id,
+    expired: i.expired,
+    allowed_mods: i.allowed_mods,
+    required_mods: i.required_mods,
+    freestyle: i.freestyle,
+    beatmap_id: i.beatmap_id,
+  }));
+
   scheduledTime = new Date(roomCreationFormValue.value.publishTimestamp);
   Object.assign(room.value, {
     host: me,
-    playlist: playlist.value,
+    playlist: minPlaylist,
     name: roomFormValue.value.name,
     duration: roomFormValue.value.duration || 30, // cannot be null even if ends_at is used
     ends_at: roomFormValue.value.endTimestamp > 0 ? new Date(roomFormValue.value.endTimestamp) : null,

@@ -48,11 +48,14 @@ import {
   NImage,
   NDropdown,
 } from 'naive-ui';
-import { h, ref, watch } from 'vue';
+import { h, ref } from 'vue';
 import { getAssetUrl } from '@/utils/getAssetUrl';
 import ModEditor from '@/components/ModEditor.vue';
+import { playlist, writePlaylistToCookies } from '@/utils/useGlobalStorage';
 
-const { api, user, message, readOnly, playlist: currentPlaylist } = defineProps({
+const {
+  api, user, message, readOnly,
+} = defineProps({
   api: {
     type: Object,
     default: undefined,
@@ -69,15 +72,9 @@ const { api, user, message, readOnly, playlist: currentPlaylist } = defineProps(
     type: Boolean,
     default: false,
   },
-  playlist: {
-    type: Array,
-    default: [],
-  },
 });
 
 const emit = defineEmits(['ready']);
-const playlist = ref([]);
-watch(() => currentPlaylist, () => { playlist.value = currentPlaylist }, { immediate: true });
 
 // #region <!-- playlist list data table --> BEGIN
 
@@ -180,10 +177,12 @@ const swapElementsAndIds = (arr, fromIndex, toIndex) => {
 function moveUp(row) {
   const i = playlist.value.findIndex(item => item.id === row.id);
   swapElementsAndIds(playlist.value, i, i - 1);
+  writePlaylistToCookies();
 }
 function moveDown(row) {
   const i = playlist.value.findIndex(item => item.id === row.id);
   swapElementsAndIds(playlist.value, i, i + 1);
+  writePlaylistToCookies();
 }
 
 function removeRow(row) {
@@ -194,6 +193,7 @@ function removeRow(row) {
       playlist.value[i].id = i + 1;
     }
   }
+  writePlaylistToCookies();
 }
 
 // #endregion <!-- playlist list data table --> END
@@ -268,11 +268,13 @@ function addBeatmap() {
   addButtonPressed.value = false;
   addFormValue.value.bid = void 0;
   addValid.value = false;
+
+  writePlaylistToCookies();
 }
 
 // #endregion <!-- add beatmap --> END
 
 function finish() {
-  emit('ready', playlist.value);
+  emit('ready');
 }
 </script>

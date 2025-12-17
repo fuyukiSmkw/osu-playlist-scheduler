@@ -35,6 +35,51 @@
       </n-gi>
     </n-grid>
     <n-divider />
+    
+    <!-- Challengers scheduling option -->
+    <n-card v-if="isChallengersAdmin" title="Scheduling Method" size="small" style="max-width: 600px;">
+      <n-space vertical>
+        <n-radio-group v-model:value="schedulingMethod" :disabled="submitted">
+          <n-space vertical>
+            <n-radio value="challengers">
+              <n-space align="center">
+                <span>Schedule via <b class="c">Challengers</b></span>
+                <n-tag type="success" size="small">Recommended</n-tag>
+              </n-space>
+              <div class="radio-description">
+                Server-side scheduling. You can close this tab after submitting.
+              </div>
+            </n-radio>
+            <n-radio value="local">
+              <span>Local scheduling</span>
+              <div class="radio-description">
+                Keep this tab open until the scheduled time.
+              </div>
+            </n-radio>
+          </n-space>
+        </n-radio-group>
+        
+        <!-- Email verification reminder for Challengers -->
+        <n-alert v-if="schedulingMethod === 'challengers'" type="warning" title="Email Verification Required" style="margin-top: 12px;">
+          Make sure you've clicked the <b>osu! verification link</b> in your email after logging in.
+          Otherwise, the scheduled room creation will fail with a 401 error.
+        </n-alert>
+        
+        <!-- Token storage option for Challengers -->
+        <n-alert v-if="schedulingMethod === 'challengers' && !hasStoredToken" type="info" title="Token Storage" style="margin-top: 12px;">
+          <n-space vertical>
+            <span>Your token will be sent with this schedule request. For future schedules, you can store your token on Challengers servers.</span>
+            <n-checkbox v-model:checked="storeTokenForFuture" :disabled="submitted">
+              Store my token for future scheduled challenges
+            </n-checkbox>
+          </n-space>
+        </n-alert>
+        <n-alert v-else-if="schedulingMethod === 'challengers' && hasStoredToken" type="success" style="margin-top: 12px;">
+          ✓ Using your stored token on Challengers
+        </n-alert>
+      </n-space>
+    </n-card>
+
     <n-form ref="roomCreationFormRef" :model="roomCreationFormValue" :rules="roomCreationFormRules" inline
       :disabled="submitted">
       <n-form-item label="Publish time (YOUR time zone)" path="publishTimestamp">
@@ -48,8 +93,42 @@
         <n-button attr-type="button" @click="handleSchedule" :disabled="submitted">Schedule!</n-button>
       </n-form-item>
     </n-form>
-    <!-- 4. wait -->
-    <n-flex v-if="submitted" vertical align="center" justify="center" size="large">
+
+    <!-- Challengers submission result -->
+    <n-flex v-if="submitted && schedulingMethod === 'challengers'" vertical align="center" justify="center" size="large">
+      <n-divider />
+      <div v-if="challengersSubmitting">
+        <n-spin size="large">
+          <template #description>Submitting to Challengers...</template>
+        </n-spin>
+      </div>
+      <div v-else-if="challengersSuccess">
+        <n-result status="success" title="Scheduled Successfully!" :description="challengersSuccessMessage">
+          <template #footer>
+            <n-space vertical align="center">
+              <n-alert type="info" title="What's next?">
+                Your playlist will be created automatically at the scheduled time.<br />
+                You can safely close this tab now!
+              </n-alert>
+              <n-button type="primary" @click="done">Done</n-button>
+            </n-space>
+          </template>
+        </n-result>
+      </div>
+      <div v-else-if="challengersError">
+        <n-result status="error" title="Scheduling Failed" :description="challengersError">
+          <template #footer>
+            <n-space>
+              <n-button @click="retryChallengers">Retry</n-button>
+              <n-button @click="switchToLocal">Use Local Scheduling Instead</n-button>
+            </n-space>
+          </template>
+        </n-result>
+      </div>
+    </n-flex>
+
+    <!-- Local scheduling (existing flow) -->
+    <n-flex v-if="submitted && schedulingMethod === 'local'" vertical align="center" justify="center" size="large">
       <n-divider />
       <n-alert type="warning" title="Keep this tab open!">Keep your browser & this tab open! DO NOT
         shutdown your
@@ -76,6 +155,14 @@
   </n-flex>
 </template>
 
+<style scoped>
+.radio-description {
+  font-size: 12px;
+  color: #888;
+  margin-left: 24px;
+}
+</style>
+
 <script setup>
 
 import {
@@ -87,16 +174,34 @@ import {
   NAlert,
   NGrid, NGi,
   NCountdown,
+  NCard,
+  NRadioGroup, NRadio,
+  NSpace,
+  NTag,
+  NCheckbox,
+  NSpin,
+  NResult,
 } from 'naive-ui';
-import { ref, watch } from 'vue';
+import { ref, watch, computed } from 'vue';
 import { message } from '@/utils/message.js';
 import PlaylistEdit from './PlaylistEdit.vue';
-import { api, me, playlist, room, chatMessages, writeRoom1ToCookies, writeRoom2ToCookies, roomFormValue, roomCreationFormValue, resultRoomRef, removeCookies } from '@/utils/useGlobalStorage';
+import { api, me, playlist, room, chatMessages, writeRoom1ToCookies, writeRoom2ToCookies, roomFormValue, roomCreationFormValue, resultRoomRef, removeCookies, isChallengersAdmin, hasStoredToken, useChallengersScheduling } from '@/utils/useGlobalStorage';
+import { challengersApi } from '@/utils/ChallengersApi.js';
 
 
-const emit = defineEmits(['next', 'prev']);
+const emit = defineEmits(['next', 'prev', 'challengers-done']);
 
 const submitted = ref(false);
+
+// Scheduling method selection
+const schedulingMethod = ref(isChallengersAdmin.value ? 'challengers' : 'local');
+const storeTokenForFuture = ref(false);
+
+// Challengers submission state
+const challengersSubmitting = ref(false);
+const challengersSuccess = ref(false);
+const challengersSuccessMessage = ref('');
+const challengersError = ref(null);
 
 function next() {
   submitted.value = true;
@@ -107,30 +212,13 @@ function next() {
 
 function prev() {
   submitted.value = false;
+  challengersSubmitting.value = false;
+  challengersSuccess.value = false;
+  challengersError.value = null;
   emit('prev');
 }
 
 // #region <!-- 3. fill room info --> BEGIN
-
-/*let room = ref({
-  // fixed
-  id: null,
-  password: null,
-  category: 'normal',
-  starts_at: null,
-  type: 'playlists',
-  queue_mode: 'host_only',
-  auto_skip: false,
-  status: 'idle',
-  // to be filled
-  host: {},
-  playlist: {},
-  // from input
-  name: '',
-  duration: 0, // minutes
-  ends_at: null,
-  max_attempts: null,
-});*/
 
 const encoder = new TextEncoder();
 function strlen(str) {
@@ -148,12 +236,6 @@ async function isFormValid(formRef) {
 }
 
 const roomFormRef = ref();
-// const roomFormValue = ref({
-//   name: '',
-//   duration: null,
-//   endTimestamp: null,
-//   maxAttempts: null
-// });
 const cookieWriter1 = {
   trigger: ['blur'],
   level: 'warning',
@@ -218,10 +300,6 @@ const roomFormRules = {
 };
 
 const roomCreationFormRef = ref();
-// const roomCreationFormValue = ref({
-//   publishTimestamp: null,
-//   messages: '',
-// });
 const cookieWriter2 = {
   trigger: ['blur'],
   level: 'warning',
@@ -262,12 +340,166 @@ const roomCreationFormRules = {
 
 function handleSchedule(e) {
   e.preventDefault();
-  scheduleGo();
+  
+  if (schedulingMethod.value === 'challengers') {
+    scheduleViaChallengers();
+  } else {
+    scheduleLocal();
+  }
 }
+
+/**
+ * Build room_data object for Challengers API
+ */
+function buildRoomData() {
+  // Make copy of playlist: only keep required values
+  const minPlaylist = playlist.value.map(i => ({
+    id: i.id,
+    beatmap_id: i.beatmap_id,
+    ruleset_id: i.ruleset_id,
+    allowed_mods: i.allowed_mods,
+    required_mods: i.required_mods,
+    freestyle: i.freestyle,
+  }));
+
+  const roomData = {
+    name: roomFormValue.value.name,
+    duration: roomFormValue.value.duration || 30,
+    type: 'playlists',
+    playlist: minPlaylist,
+  };
+
+  // Add ends_at if specified
+  if (roomFormValue.value.endTimestamp > 0) {
+    roomData.ends_at = new Date(roomFormValue.value.endTimestamp).toISOString();
+  }
+
+  // Add max_attempts if specified
+  if (roomFormValue.value.maxAttempts) {
+    roomData.max_attempts = roomFormValue.value.maxAttempts;
+  }
+
+  return roomData;
+}
+
+/**
+ * Get current token string from API
+ */
+function getCurrentTokenString() {
+  return api.getTokenString();
+}
+
+/**
+ * Schedule via Challengers API
+ */
+async function scheduleViaChallengers() {
+  let valid = await isFormValid(roomFormRef) && await isFormValid(roomCreationFormRef);
+  if (!valid) {
+    message.warning('Room info invalid!');
+    return;
+  }
+
+  submitted.value = true;
+  challengersSubmitting.value = true;
+  challengersSuccess.value = false;
+  challengersError.value = null;
+
+  writeRoom1ToCookies();
+  writeRoom2ToCookies();
+
+  try {
+    const scheduledTime = new Date(roomCreationFormValue.value.publishTimestamp).toISOString();
+    const roomData = buildRoomData();
+    
+    // Parse chat messages
+    const chatMsgs = [];
+    roomCreationFormValue.value.messages.split(/\r?\n/).forEach(line => {
+      if (line.trim()) {
+        chatMsgs.push(line.trim());
+      }
+    });
+
+    // Build request params
+    const scheduleParams = {
+      osuId: me.value.id,
+      scheduledTime,
+      roomData,
+      chatMessages: chatMsgs.length > 0 ? chatMsgs : undefined,
+    };
+
+    // Include token if user doesn't have stored token OR wants to store it
+    if (!hasStoredToken.value) {
+      const tokenString = getCurrentTokenString();
+      if (!tokenString) {
+        throw new Error('Could not get current token');
+      }
+      scheduleParams.osuToken = tokenString;
+
+      // If user wants to store token for future, do that first
+      if (storeTokenForFuture.value) {
+        console.log('Storing token for future use...');
+        try {
+          await challengersApi.setUserToken(me.value.id, tokenString);
+          hasStoredToken.value = true;
+          message.success('Token stored for future schedules!');
+        } catch (storeErr) {
+          console.warn('Failed to store token:', storeErr.message);
+          // Continue anyway - token is included in schedule request
+        }
+      }
+    }
+
+    console.log('Creating schedule via Challengers:', {
+      osuId: scheduleParams.osuId,
+      scheduledTime: scheduleParams.scheduledTime,
+      roomName: scheduleParams.roomData.name,
+      playlistItems: scheduleParams.roomData.playlist.length,
+      hasToken: !!scheduleParams.osuToken,
+      hasChatMessages: !!scheduleParams.chatMessages,
+    });
+
+    const result = await challengersApi.createSchedule(scheduleParams);
+    
+    console.log('Challengers schedule created:', result);
+    
+    challengersSuccess.value = true;
+    challengersSuccessMessage.value = `Playlist "${roomData.name}" scheduled for ${new Date(scheduledTime).toLocaleString()}`;
+    
+    // Store result for reference
+    resultRoomRef.value = {
+      challengersScheduleId: result.schedule?.id,
+      scheduledTime,
+      roomName: roomData.name,
+    };
+
+  } catch (err) {
+    console.error('Challengers scheduling failed:', err);
+    challengersError.value = err.message || 'Failed to schedule via Challengers';
+  } finally {
+    challengersSubmitting.value = false;
+  }
+}
+
+function retryChallengers() {
+  submitted.value = false;
+  challengersError.value = null;
+  // Re-submit
+  setTimeout(() => scheduleViaChallengers(), 100);
+}
+
+function switchToLocal() {
+  submitted.value = false;
+  schedulingMethod.value = 'local';
+  challengersError.value = null;
+}
+
+// #endregion <!-- 3. fill room info --> END
+
+// #region <!-- Local scheduling (existing flow) --> BEGIN
 
 let scheduledTime = new Date();
 
-async function scheduleGo() {
+async function scheduleLocal() {
   let valid = await isFormValid(roomFormRef) && await isFormValid(roomCreationFormRef);
   if (!valid) {
     message.warning('Room info invalid!');
@@ -303,16 +535,18 @@ async function scheduleGo() {
     }
   });
 
-  next();
+  submitted.value = true;
+  writeRoom1ToCookies();
+  writeRoom2ToCookies();
 }
 
-// #endregion <!-- 3. fill room info --> END
+// #endregion <!-- Local scheduling --> END
 
-// #region <!-- 4. wait --> BEGIN
+// #region <!-- 4. wait (local only) --> BEGIN
 
 // watch and start countdown
 watch(submitted, async (s, olds) => {
-  if (s) {
+  if (s && schedulingMethod.value === 'local') {
     if (!olds) {
       startCountdown();
     }
@@ -369,7 +603,6 @@ function endCountdown() {
   clearAllTimers();
 }
 
-// const resultRoomRef = ref({});
 let resultRoom = null;
 
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
@@ -413,8 +646,12 @@ async function createPlaylist() {
 // #endregion <!-- 4. wait --> END
 
 function done() {
-  emit('next');
   removeCookies();
+  if (schedulingMethod.value === 'challengers') {
+    emit('challengers-done');
+  } else {
+    emit('next');
+  }
 }
 
 </script>

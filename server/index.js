@@ -46,4 +46,8 @@ Mp.register(router, '/api/osu');
 import * as Beatmap from './api/osu/Beatmap.js';
 Beatmap.register(router, '/api/osu');
 
+// import api/challengers (proxy to Challengers API)
+import * as Challengers from './api/challengers/index.js';
+Challengers.register(router, '/api/challengers');
+
 export default { ...router }; // "export default router" won't work with vite (npm run dev)

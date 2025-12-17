@@ -34,6 +34,10 @@
 	/**
 	 * Note: Use secrets to store sensitive data.
 	 * https://developers.cloudflare.com/workers/configuration/secrets/
+	 * 
+	 * Required secrets for Challengers integration:
+	 * - CHALLENGERS_SCHEDULER_SECRET: Shared secret for Challengers API authentication
+	 *   Set with: wrangler secret put CHALLENGERS_SCHEDULER_SECRET
 	 */
 	/**
 	 * Static Assets

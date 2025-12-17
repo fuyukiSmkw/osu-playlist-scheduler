@@ -28,6 +28,12 @@ export let room = ref({
 
 export const chatMessages = ref([]);
 
+// Challengers integration state
+export const isChallengersAdmin = ref(false);
+export const challengersUser = ref(null);
+export const hasStoredToken = ref(false);
+export const useChallengersScheduling = ref(false); // User's choice for this session
+
 // #region Read cookies first BEGIN
 
 // read playlist from cookie
@@ -113,3 +119,13 @@ export function removeCookies() {
 }
 
 // #endregion Read cookies first END
+
+/**
+ * Reset Challengers state (call on logout or when user changes)
+ */
+export function resetChallengersState() {
+    isChallengersAdmin.value = false;
+    challengersUser.value = null;
+    hasStoredToken.value = false;
+    useChallengersScheduling.value = false;
+}

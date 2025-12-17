@@ -32,6 +32,18 @@ export class MyApi {
     }
 
     /**
+     * Get token as string in format: access_token|timestamp|refresh_token
+     * @returns {string|null} Token string or null if not available
+     */
+    getTokenString() {
+        if (!this.#api._access_token || !this.#api._expires || !this.#api._refresh_token) {
+            return null;
+        }
+        const expiresTimestamp = Math.floor(new Date(this.#api._expires).getTime() / 1000);
+        return `${this.#api._access_token}|${expiresTimestamp}|${this.#api._refresh_token}`;
+    }
+
+    /**
      * if access_token is not void
      * @returns {bool}
      */

@@ -32,9 +32,9 @@
                 <PlaylistSetup @next="nextStep" />
               </div>
 
-              <!-- 3. fill room info -->
+              <!-- 3. fill room info (and 4. wait for local scheduling) -->
               <div v-else-if="currentStep === 3 || currentStep === 4">
-                <RoomSetup @next="nextStep" @prev="prevStep" />
+                <RoomSetup @next="nextStep" @prev="prevStep" @challengers-done="handleChallengersDone" />
               </div>
 
               <!-- 5. done -->
@@ -43,7 +43,19 @@
                   <n-gradient-text :size="48" :gradient="{ from: '#c54f86', to: '#ff66ab', deg: 90 }">
                     success :D
                   </n-gradient-text>
-                  <a class='c' :href="`https://osu.ppy.sh/multiplayer/rooms/${resultRoomRef.id}`">Link to room</a>
+                  <div v-if="resultRoomRef.id">
+                    <a class='c' :href="`https://osu.ppy.sh/multiplayer/rooms/${resultRoomRef.id}`">Link to room</a>
+                  </div>
+                  <div v-else-if="resultRoomRef.challengersScheduleId">
+                    <n-space vertical align="center">
+                      <n-tag type="success">Scheduled via Challengers</n-tag>
+                      <p>Your playlist "<b>{{ resultRoomRef.roomName }}</b>" will be created at:</p>
+                      <p><b>{{ new Date(resultRoomRef.scheduledTime).toLocaleString() }}</b></p>
+                      <n-alert type="info">
+                        The room link will be available on <a class="c" href="https://www.challengersnexus.com" target="_blank">Challengers</a> once created.
+                      </n-alert>
+                    </n-space>
+                  </div>
                 </n-flex>
               </div>
 
@@ -119,6 +131,9 @@ import {
   NSteps, NStep,
   NGradientText,
   NMessageProvider,
+  NSpace,
+  NTag,
+  NAlert,
 } from 'naive-ui';
 import { ref, watch } from 'vue';
 import { theme, themeOverrides } from './theme';
@@ -135,6 +150,11 @@ function prevStep() {
   currentStep.value--;
 }
 
+// Handle Challengers scheduling completion (skip step 4)
+function handleChallengersDone() {
+  currentStep.value = 5;
+}
+
 // #region prevent user refresh BEGIN
 
 const handleBeforeUnload = (event) => {
@@ -148,6 +168,10 @@ watch(currentStep, (step, oldStep) => {
     addLeaveDialog();
   }
   if (step === 5 && oldStep === 4) {
+    removeLeaveDialog();
+  }
+  // Also remove for Challengers completion (3 -> 5)
+  if (step === 5 && oldStep === 3) {
     removeLeaveDialog();
   }
 });

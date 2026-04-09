@@ -3,6 +3,7 @@ import modData from '@/assets/data/mods.json';
 
 export const acronymToMod = [{}, {}, {}, {}];
 export const allModList = [[], [], [], []];
+export const allMpModList = [[], [], [], []];
 export const allFreemodList = [[], [], [], []];
 export const allFreestyleRequiredModList = [[], [], [], []];
 
@@ -12,6 +13,8 @@ for (const ruleset of modData) {
     acronymToMod[mode][mod.Acronym] = mod;
     if (mod.Type !== 'System')
       allModList[mode].push(mod);
+    if (mod.ValidForMultiplayer)
+      allMpModList[mode].push(mod);
     if (mod.ValidForMultiplayerAsFreeMod)
       allFreemodList[mode].push(mod);
     if (mod.ValidForFreestyleAsRequiredMod)

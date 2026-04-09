@@ -50,7 +50,7 @@ import {
   NSwitch,
   NDivider,
 } from 'naive-ui';
-import { acronymToMod, allModList, allFreestyleRequiredModList, allFreemodList } from '@/utils/ModData';
+import { acronymToMod, allMpModList, allFreestyleRequiredModList, allFreemodList } from '@/utils/ModData';
 import { getAssetUrl } from '@/utils/getAssetUrl';
 import { ref, watch } from 'vue';
 
@@ -93,7 +93,7 @@ function initializeLocalData() {
       }
     });
   }
-  allModList[rulesetId].forEach(mod => {
+  allMpModList[rulesetId].forEach(mod => {
     if (!modSettingsMap.value[mod.Acronym]) {
       modSettingsMap.value[mod.Acronym] = {};
     }
@@ -117,9 +117,9 @@ const allowInputFunctions = {
 };
 
 const modeMap = {
-  required_mods: allModList,
+  required_mods: allMpModList,
   required_mods_freestyle: allFreestyleRequiredModList,
-  freemods: allModList, // this is playlist instead of multiplayer room, so this should be all mods
+  freemods: allMpModList, // this is playlist instead of multiplayer room, so this should be all mods
 };
 
 const getModIconUrl = (acronym, disabled = false) => getAssetUrl(`/assets/images/mod${disabled ? '-disabled' : ''}/${acronym}.png`);
@@ -141,7 +141,7 @@ function handleUpdateSelection() {
 function selectAllFreemods() {
   removeAll();
   // this is playlist instead of multiplayer room, so this should be all mods
-  allModList[rulesetId].forEach((mod) => {
+  allMpModList[rulesetId].forEach((mod) => {
     if (!incompatibleMods.value.has(mod.Acronym)) {
       selectedAcronyms.value.push(mod.Acronym);
     }

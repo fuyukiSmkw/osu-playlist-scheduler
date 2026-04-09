@@ -59,7 +59,7 @@ import {
   NDrawer, NDrawerContent,
   NDivider,
 } from 'naive-ui';
-import { acronymToMod, allFreemodList, allModList } from '@/utils/ModData.js';
+import { acronymToMod, allFreemodList, allMpModList } from '@/utils/ModData.js';
 import { getAssetUrl } from '@/utils/getAssetUrl';
 import ModSelect from './ModSelect.vue';
 import { ref, watch } from 'vue';
@@ -92,7 +92,7 @@ function freestyleUpdate(freestyle) {
   } else {
     // freestyle ON -> OFF
     // this is playlist instead of multiplayer room, so this should be all mods
-    item.value.allowed_mods = allModList[item.value.ruleset_id].map(mod => ({
+    item.value.allowed_mods = allMpModList[item.value.ruleset_id].map(mod => ({
       acronym: mod.Acronym,
       settings: {}
     })); // copy

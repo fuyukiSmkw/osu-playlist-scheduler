@@ -6,8 +6,8 @@
     </n-space>
     <n-checkbox-group v-model:value="selectedAcronyms" @update:value="handleUpdateSelection">
       <n-flex v-for="mod in modeMap[mode][rulesetId]" :key="mod.Acronym" align="center">
-        <n-image height="32" lazy preview-disabled
-          :src="getModIconUrl(mod.Acronym, incompatibleMods.has(mod.Acronym))" />
+        <n-image height="32" lazy preview-disabled :src="getModIconUrl(mod.Acronym)"
+          :class="{ 'grayscale': incompatibleMods.has(mod.Acronym) }" />
         <n-checkbox :value="mod.Acronym" :disabled="incompatibleMods.has(mod.Acronym)">
           {{ mod.Name }}
         </n-checkbox>
@@ -18,17 +18,27 @@
           </template>
           <template #header>Settings of {{ mod.Name }}</template>
           <n-space vertical>
-            <div v-for="setting in mod.Settings" :key="setting.Name">
-              <n-input v-if="setting.Type !== 'boolean'" clearable
-                v-model:value="modSettingsMap[mod.Acronym][setting.Name]" :placeholder="setting.Type"
-                :allow-input="allowInputFunctions[setting.Type]">
-                <template #prefix>{{ setting.Label }}: </template>
-              </n-input>
-              <n-space v-else align="center">
-                {{ setting.Label }}
-                <n-switch v-model:value="modSettingsMap[mod.Acronym][setting.Name]" />
-              </n-space>
-            </div>
+            <n-checkbox-group v-model:value="modSettingsMapEnabled[mod.Acronym]"
+              @update:value="(_, m) => handleUpdateSettingToggle(mod, m.actionType, m.value)">
+              <div v-for="setting in mod.Settings" :key="setting.Name">
+                <n-space align="center" :wrap="false">
+                  <n-checkbox :value="setting.Name"
+                    @update:checked="(checked) => handleToggleSetting(mod.Acronym, setting.Name, setting.Type, checked)"
+                    :label="setting.Label" />
+                  <div v-if="modSettingsMapEnabled[mod.Acronym].includes(setting.Name)">
+                    <n-input v-if="setting.Type !== 'boolean'" clearable
+                      v-model:value="modSettingsMap[mod.Acronym][setting.Name]" :placeholder="setting.Type"
+                      :allow-input="allowInputFunctions[setting.Type]">
+                      <template #prefix>{{ setting.Label }}: </template>
+                    </n-input>
+                    <n-space v-else align="center">
+                      {{ setting.Label }}
+                      <n-switch v-model:value="modSettingsMap[mod.Acronym][setting.Name]" />
+                    </n-space>
+                  </div>
+                </n-space>
+              </div>
+            </n-checkbox-group>
           </n-space>
           <template #footer>Note: you should make <b>100% sure</b> that all values are valid!</template>
         </n-popover>
@@ -38,6 +48,12 @@
     <n-button @click="done">Done</n-button>
   </n-space>
 </template>
+
+<style scoped>
+.grayscale {
+  filter: grayscale(100%);
+}
+</style>
 
 <script setup>
 import {
@@ -77,11 +93,13 @@ const emit = defineEmits(['update']);
 
 const selectedAcronyms = ref([]);
 const modSettingsMap = ref({});
+const modSettingsMapEnabled = ref({});
 const incompatibleMods = ref(new Set());
 
 function initializeLocalData() {
   selectedAcronyms.value = [];
   modSettingsMap.value = {};
+  modSettingsMapEnabled.value = {};
   disabledModAcronyms.forEach((a) => incompatibleMods.value.add(a));
   if (mods) {
     mods.forEach((mod) => {
@@ -89,6 +107,9 @@ function initializeLocalData() {
         selectedAcronyms.value.push(mod.acronym);
         if (mod.settings) {
           modSettingsMap.value[mod.acronym] = { ...mod.settings };
+          modSettingsMapEnabled.value[mod.acronym] = [];
+          for (const name in mod.settings)
+            modSettingsMapEnabled.value[mod.acronym].push(name);
         }
       }
     });
@@ -96,6 +117,7 @@ function initializeLocalData() {
   allMpModList[rulesetId].forEach(mod => {
     if (!modSettingsMap.value[mod.Acronym]) {
       modSettingsMap.value[mod.Acronym] = {};
+      modSettingsMapEnabled.value[mod.Acronym] = [];
     }
   });
   handleUpdateSelection(selectedAcronyms.value);
@@ -122,7 +144,7 @@ const modeMap = {
   freemods: allMpModList, // this is playlist instead of multiplayer room, so this should be all mods
 };
 
-const getModIconUrl = (acronym, disabled = false) => getAssetUrl(`/assets/images/mod${disabled ? '-disabled' : ''}/${acronym}.png`);
+const getModIconUrl = (acronym) => getAssetUrl(`/assets/images/mod/${acronym}.png`);
 
 // should not use in freemods!
 function handleUpdateSelection() {
@@ -152,6 +174,16 @@ function removeAll() {
   handleUpdateSelection();
 }
 
+// handle(["adjust_pitch","final_rate"], {"actionType":"check","value":"final_rate"})
+function handleUpdateSettingToggle(mod, checked, settingName) {
+  if (checked === 'check') {
+    const setting = mod.Settings.find(item => item.Name === settingName);
+    modSettingsMap.value[mod.Acronym][settingName] = (setting.Type === 'boolean' ? false : null);
+  } else {
+    delete modSettingsMap.value[mod.Acronym][settingName];
+  }
+}
+
 function done() {
   let newMods = [];
   selectedAcronyms.value.forEach((acronym) => {
@@ -160,7 +192,7 @@ function done() {
     if (mode !== 'freemods') {
       for (const [name, value] of Object.entries(modSettingsMap.value[acronym])) {
         const modSettingsJson = modJson.Settings.find((s) => s.Name === name);
-        if (!modSettingsJson || !value)
+        if (!modSettingsJson || value === null || value === undefined)
           continue;
         if (modSettingsJson.Type === 'number') {
           settings[name] = Number(value);

@@ -70,6 +70,10 @@
       <n-space vertical justify="center" align="center">
         <a>Is this you?</a>
         <UserConfirm :user="me" />
+        <!-- Challengers admin badge -->
+        <n-tag v-if="isChallengersAdmin" type="success" round>
+          ✓ Challengers Admin
+        </n-tag>
         <n-space justify="space-between">
           <n-button @click="userConfirmed">Yes, let's go</n-button>
           <n-button @click="userConfirmReady = false; tokenFormGoPressed = false; passwordFormGoPressed = false;">
@@ -95,6 +99,7 @@ import {
   NGradientText,
   NSpin,
   NAlert,
+  NTag,
 } from 'naive-ui';
 import { ref } from 'vue';
 import SecurityWarning from '@/components/SecurityWarning.vue';
@@ -102,7 +107,8 @@ import GuideForToken from '@/components/GuideForToken.vue';
 import WhyTokenNeeded from '@/components/WhyTokenNeeded.vue';
 import UserConfirm from '@/components/UserConfirm.vue';
 import { message } from '@/utils/message.js';
-import { api, me, loadFromCookies } from '@/utils/useGlobalStorage';
+import { api, me, loadFromCookies, isChallengersAdmin, challengersUser, hasStoredToken, resetChallengersState } from '@/utils/useGlobalStorage';
+import { challengersApi } from '@/utils/ChallengersApi.js';
 
 const emit = defineEmits(['next']);
 
@@ -110,6 +116,45 @@ const emit = defineEmits(['next']);
 
 // const me = ref({});
 const userConfirmReady = ref(false);
+
+/**
+ * Check if user is a Challengers admin after successful login
+ */
+async function checkChallengersStatus() {
+  try {
+    console.log('Checking Challengers admin status for user:', me.value.id);
+    
+    // Reset state first
+    resetChallengersState();
+    
+    // Check permission
+    const permissionResult = await challengersApi.verifyPermission(me.value.id);
+    console.log('Challengers permission result:', permissionResult);
+    
+    if (permissionResult.allowed) {
+      isChallengersAdmin.value = true;
+      challengersUser.value = permissionResult.user;
+      
+      // Also check if user has stored token
+      try {
+        const tokenStatus = await challengersApi.checkUserToken(me.value.id);
+        hasStoredToken.value = tokenStatus.has_token;
+        console.log('Challengers token status:', tokenStatus);
+      } catch (tokenErr) {
+        console.log('Could not check token status:', tokenErr.message);
+        hasStoredToken.value = false;
+      }
+      
+      message.success('You are a Challengers admin! Server-side scheduling available.');
+    } else {
+      console.log('User is not a Challengers admin:', permissionResult.reason);
+    }
+  } catch (err) {
+    // Not an error - user just isn't a Challengers admin or API unavailable
+    console.log('Challengers check skipped:', err.message);
+    resetChallengersState();
+  }
+}
 
 // Token form
 const tokenFormRef = ref();
@@ -158,6 +203,9 @@ function tokenFormGo(e) {
         userConfirmReady.value = false;
         return;
       }
+
+      // Check Challengers status (non-blocking)
+      await checkChallengersStatus();
 
       userConfirmReady.value = true;
     }
@@ -225,6 +273,9 @@ function passwordFormGo(e) {
         return;
       }
 
+      // Check Challengers status (non-blocking)
+      await checkChallengersStatus();
+
       userConfirmReady.value = true;
     }
   });
@@ -237,6 +288,10 @@ const showSpin = ref(false);
     showSpin.value = true;
     try {
       me.value = await api.getResourceOwner();
+      
+      // Check Challengers status for returning users
+      await checkChallengersStatus();
+      
       userConfirmReady.value = true;
     } catch (_) {
     }
